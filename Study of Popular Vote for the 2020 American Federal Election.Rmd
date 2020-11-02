@@ -1,0 +1,131 @@
+---
+title: "Study of Popular Vote for the 2020 American Federal Election"
+author: "Xin Zhao(1003945001), WenXuan Zhai(1004831890), Binqi LI(1004871123)"
+date: "November 2nd, 2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+Information and Code supporting this Report is available at: https://github.com/binqi-LI/Prediction-on-Popular-Vote-for-the-2020-American-Federal-Election
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+# Loading in the cleaned survey Data
+survey_data <- read_csv("/Users/juliazhai/Desktop/PS3/survey_data.csv")
+
+# Loading in the cleaned census Data
+census_data <- read_csv("/Users/juliazhai/Desktop/PS3/census_data.csv")
+
+```
+
+
+
+# Model
+
+The analysis tries to predict the popular vote for the 2020 American federal election, while the data used is UCLA Nationscape survey data conducted on post-stratification methods. Logistic regression model would be the best alternative to employ in this case, as the result is a binary outcome variable. All procedures are conducted within R language environment. 
+
+## Model Specifics
+Logistic linear regression model is used to predict the proportion of voters voting for Donald Trump. This is a naive model. We will only use age, gender and household income as our explanatory variables,to model the probability of voting for Donald Trump. The logistic linear regression model is:
+
+$$ log(\frac{p}{1-p}) = \beta_0+\beta_1x_{Age} + \beta_2x_{Male} +\beta_3x_{Household Income(100,000 to 124,999)}+ \epsilon$$
+Table 1: Summary Table for Final Model on predicting the popular vote for Donald Trump
+```{r, echo=FALSE, include=TRUE, comment=NA}
+
+# Creating the Model
+first.mod <- glm(vote_trump ~ age + gender + household_income + education, 
+            data=survey_data, family= "binomial")
+final.mod <- glm(vote_trump ~ age + gender + household_income, 
+            data=survey_data, family= "binomial") 
+
+# Model Results
+#summary(final.mod)
+
+# Summary of the Final Model in a Table
+broom::tidy(final.mod)
+
+```
+
+Age (numeric variable), gender (categorical variable) and household income (categorical variable) are used to model the probability of voting for Donald Trump, while $log(\frac{p}{1-p})$ represents the probability outcome. Research shows that age and gender attributes of an individual influence her preference over voting choice and her perception on policies and problems exposed during the election. Income level may also have a significant relationship with one’s voting choice [3]. $\beta_0$ represents the intercept of the model, and is the probability of a 0-year-old female with household income between 100,000 dollars to 124,999 dollars voting for Donald Trump. $\beta_1$ represents the slope coefficient of age, $\beta_2$ represents the slope coefficient of gender, while $\beta_3$ represents the slope coefficient of household income. Therefore, for every unit increase in age, we expect on average a $\beta_1$ unit increase in probability of voting for Donald Trump; the average difference in probability of voting for Donald Trump between two gender groups is $\beta_2$ unit; the average difference in probability of voting for Donald Trump between the correspond household income group and group of household income between 100,000 dollars to 124,999 dollars is $\beta_3$ unit. 
+
+ 
+## Post-Stratification 
+
+In order to estimate the proportion of voters who will vote for Donald Trump, poststratification analysis is employed. Poststratification enables the analysis to find the response variable; in this case, the probability of voting for Donald Trump, for each different group(bin/cell), the groups partitioned from data by household income, then aggregate the bin-level estimates up to the population-level estimate by weighting each bin by its proportion in the population. Poststratification makes for good correction of non-probability based sampling. Household income variable is chosen as the basis for the cell split, the variable represents the current annual household income before taxes of the surveyed individual. Different income groups show distinct tendencies in voting choices and party preferences, because policies promised in the election favor people of different income levels. 
+
+```{r, include=FALSE}
+# Modify the Data
+census_data<- census_data %>% 
+  rename(household_income = ftotinc)
+census_data<- census_data %>% 
+  rename(gender = sex) %>% 
+  mutate(gender = ifelse(gender == "female","Female","Male"))
+
+# Post-stratification Calculation
+census_data$estimate <-
+  final.mod %>%
+  predict(newdata = census_data, type = "response")
+
+census_data %>% 
+  mutate(alp_predict_prop = estimate*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+```
+
+
+# Results
+
+Based on our logistic model above, the estimated coefficient of age variable has a p-value less than 0.001(p<0.001), which rejects the null hypothesis, suggesting a positive correlation between this response variable and the explanatory variable. 
+
+The difference in proportion of voting for Donald Trump between two gender groups is estimated at level of 0.46 with p-value less than 0.001, which also rejects the null hypothesis and suggests difference in voting choice between gender groups.
+
+The model shows a proportion of voting for Donald Trump within groups of different income levels, while only a few groups have p-value that rejects the null hypothesis. Therefore the analysis tries to show the trend of change in proportion of votes with income level based on the few significant estimated coefficients of difference. The model suggests that households with lower income on average have lower proportion voting for Donald Trump due to the negative estimated coefficients. We also find out that the evidence is stronger showing the correlation as the level of household income gets lower.
+
+Families with middle level income (45,000 to 94,999 dollars), however, have higher p-value showing an unclear correlation between their preference in voting in the election and income level, other indicators should be further incorporated to find correlation of voting for Trump in this income group. 
+
+Some groups with income in range 100,000 dollars and above have p-value that suggests significance of difference in voting proportion with group of income between 100,000 dollars to 124,999 dollars, while estimated coefficients of income group $200,000 to 249,999 shows a positive correlation between income level and proportion voting for Donald Trump. Other income levels don’t show significant correlation.
+
+We estimate that the proportion of voters in favour of voting for Donald Trump to be 43.051%. This is based on our post-stratification analysis of the proportion of voters in favour of Donald Trump modelled by a logistic regression model, which accounted for variables of age, gender, and household income.
+
+
+# Discussion
+The analysis tries to predict the probability of Donald Trump winning the 2020 election. Logistic model with post-stratification sampling method is employed to investigate the potential correlation between selected explanatory variables (age, gender, and household income) and the response variable (population proportion voting for Donald Trump). 
+
+Based on the result, there’s a significant positive correlation between age and probability of voting for Donald Trump, suggesting that the older population may favor Donald Trump in the election. The male population contributes a higher portion of Donald Trump’s votes, as the model estimates a strong difference in voting preferences between gender groups. 
+
+Overall, the analysis doesn’t show a strong correlation between household income and voting choice, whereas it does suggest that people with relatively low household income are more likely to not vote for Donald Trump. 
+
+Our overall prediction is Donald Trump will have a 43% chance of winning the 2020 election supported by our developed model using selected explanatory variables under the post-stratification method.
+
+
+## Weaknesses
+Logistic regression model needs independent variables that are linearly related to the log odds (log(p/(1-p)), while gender, age and income variables might not be independent from each other. On the other hand, logistic regression might over-simplify the complex relationships between variables and probability of voting for Donald Trump.
+
+Due to limits of the survey buildup, only household income level is available. However, individual income may have greater impact on voting preferences and is able to express clearer correlation between income factor and the response variable. Largely distinct estimated coefficient is also possible between the two income variables, therefore the comparison between two factors is important to study people’s voting behavior.
+
+
+## Next Steps
+More compact algorithms such as neural networks can easily outperform this model in terms of finding complex relationships between explanatory and response variables in this case. Besides, we may compare the model prediction and actual voting results and do a post-hoc analysis to improve estimation in future elections, such as giving surveys to solicit voting choice and reasons for the vote.
+
+
+# References
+1.RStudio Team (2020). RStudio: Integrated Development for R. RStudio, PBC, Boston, MA URL http://www.rstudio.com/.
+
+2.Caetano, Samantha-Jo, et al. “01-data_cleaning-survey1.R” Rstudio Team. University of Toronto. Retrieved November 01, 2020
+
+3.Caetano, Samantha-Jo, et al. “01-data_cleaning-post-strat1.R” Rstudio Team. University of Toronto. Retrieved November 01, 2020
+
+4.Written by Emilia Simeonova. (n.d.). This is the link between voting in elections and income. Retrieved November 01, 2020, from https://www.weforum.org/agenda/2018/07/low-voter-turnout-increasing-household-income-may-help
+
+5.Rekkas, Marie. (2008). “Gender and Elections: An Examination of the 2006 Canadian Federal Election.” Canadian Journal of Political Science. Retrieved November 01, 2020
+
+6.DeSilver, D. (2020, May 30). U.S. voter turnout trails most developed countries. Retrieved November 01, 2020, from https://www.pewresearch.org/fact-tank/2018/05/21/u-s-voter-turnout-trails-most-developed-countries/
+
+7.David Robinson, Alex Hayes and Simon Couch (2020). broom: Convert Statistical Objects into Tidy
+  Tibbles. https://broom.tidymodels.org/, http://github.com/tidymodels/broom　
+
+8.Plyr. (n.d.). Retrieved November 02, 2020, from https://www.rdocumentation.org/packages/plyr/versions/1.8.6/topics/rename
+
